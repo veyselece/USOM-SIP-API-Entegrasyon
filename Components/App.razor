@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <base href="/" />
+    <meta name="description" content="USOM SİP API yönetim portalı" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="css/site.css" />
+    <HeadOutlet @rendermode="InteractiveServer" />
+</head>
+<body>
+    <Routes @rendermode="InteractiveServer" />
+    <script>
+        document.addEventListener('keydown', function (event) {
+            if (event.key === 'Escape') {
+                const close = document.querySelector('[data-modal-close]');
+                if (close) close.click();
+            }
+        });
+    </script>
+
+    <script>
+      (() => {
+        document.addEventListener('keydown', function (event) {
+          if (event.key === 'Escape') { const close = document.querySelector('[data-modal-close]'); if (close) close.click(); }
+          if (event.key === 'Enter' && event.target && event.target.matches('.toolbar input')) {
+            const toolbar = event.target.closest('.toolbar');
+            const filter = toolbar && toolbar.querySelector('button');
+            if (filter && /Filtrele/i.test(filter.textContent || '')) { event.preventDefault(); filter.click(); }
+          }
+          if ((event.key === 'Enter' || event.key === ' ') && event.target && event.target.matches('th.sortable-header')) { event.preventDefault(); event.target.click(); }
+        });
+        document.addEventListener('click', function (event) {
+          const th = event.target.closest('th.sortable-header');
+          if (!th) return;
+          const table = th.closest('table'); if (!table) return;
+          const idx = Array.from(th.parentElement.children).indexOf(th);
+          if (!th.dataset.sortDir) th.dataset.sortDir = 'asc'; else th.dataset.sortDir = th.dataset.sortDir === 'asc' ? 'desc' : 'asc';
+          const body = table.tBodies[0]; if (!body) return;
+          const rows = Array.from(body.rows).filter(row => row.cells.length > idx && !row.querySelector('td[colspan]'));
+          const dir = th.dataset.sortDir === 'asc' ? 1 : -1;
+          rows.sort((a,b) => {
+            const av=(a.cells[idx].innerText||'').trim(), bv=(b.cells[idx].innerText||'').trim();
+            const an=Number(av.replace(/[^0-9,.-]/g,'').replace(/,/g,'')), bn=Number(bv.replace(/[^0-9,.-]/g,'').replace(/,/g,''));
+            if (av && bv && Number.isFinite(an) && Number.isFinite(bn)) return (an-bn)*dir;
+            return av.localeCompare(bv,'tr',{numeric:true,sensitivity:'base'})*dir;
+          });
+          rows.forEach(row => body.appendChild(row));
+        });
+        const showPermissionToast = (node) => {
+          if (!node || node.dataset.toastHandled === '1') return;
+          const text = (node.innerText || '').trim();
+          if (!text.includes('Bu işlem için yetkiniz bulunmuyor')) return;
+          node.dataset.toastHandled = '1'; node.classList.add('permission-toast');
+          node.setAttribute('role','status');
+          const close=document.createElement('button'); close.type='button'; close.textContent=' ×'; close.setAttribute('aria-label','Kapat'); close.style.cssText='float:right;border:0;background:transparent;font-size:20px;cursor:pointer;color:inherit';
+          close.addEventListener('click',()=>node.remove()); node.prepend(close);
+          setTimeout(()=>node.remove(),6500);
+        };
+        const scan = () => document.querySelectorAll('.alert.alert-danger').forEach(showPermissionToast);
+        new MutationObserver(scan).observe(document.body,{childList:true,subtree:true,characterData:true});
+        document.addEventListener('DOMContentLoaded',scan); setTimeout(scan,500);
+      })();
+    </script>
+    <script src="_framework/blazor.web.js"></script>
+</body>
+</html>

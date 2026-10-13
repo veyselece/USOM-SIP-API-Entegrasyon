@@ -1,0 +1,184 @@
+@page "/settings"
+@using SipPortal.Services
+@using Microsoft.AspNetCore.WebUtilities
+@using Microsoft.JSInterop
+@using System.Text.Json
+@using System.Text.Json.Nodes
+<PageTitle>Uygulama Ayarları</PageTitle>
+<div class="page-head"><div><h1>Uygulama Ayarları</h1></div></div>
+@if (StartupWarning is not null) { <div class="alert alert-warning" role="alert" aria-live="assertive"><strong>Bağlantı uyarısı</strong><p style="margin:6px 0 0">@StartupWarning</p><p style="margin:6px 0 0">Uygulama çalışmaya devam ediyor. Proxy adresini ve kimlik doğrulama ayarlarını kontrol edip kaydedin; ardından bağlantıyı test edin.</p></div> }
+@if (Error is not null) { <div class="alert alert-danger" role="alert">@Error</div> }
+@if (Message is not null) { <div class="alert alert-success" role="status">@Message</div> }
+<div class="grid-2">
+    <div class="card">
+        <h3>Token</h3>
+        <div class="field"><label>SİP API Token</label><input type="password" @bind="Token" autocomplete="off" placeholder="SİP → Profil → Api Tokenlarım" /></div>
+        <div class="toolbar" style="margin-top:10px"><button class="btn btn-primary" @onclick="SaveTokenAsync">Token Kaydet</button><button class="btn btn-light" @onclick="TestTokenButtonAsync">API Key Test Et</button></div>
+    </div>
+    <div class="card">
+        <h3>Bağlantı ve Proxy</h3>
+        <div class="field"><label for="proxy-enabled">Proxy kullanımı</label><label class="proxy-toggle"><input id="proxy-enabled" type="checkbox" @bind="ProxyEnabled" /> <span>Proxy kullanılsın</span></label></div>
+        <div class="field" style="margin-top:12px">
+            <label>Proxy adresi</label>
+            <div style="display:grid;grid-template-columns:minmax(0,1fr) 110px;gap:10px">
+                <div><label for="proxy-host" style="font-size:.85rem">Adres / Sunucu</label><input id="proxy-host" @bind="ProxyHost" placeholder="proxy.kurumadi.intra" /></div>
+                <div><label for="proxy-port" style="font-size:.85rem">Port</label><input id="proxy-port" type="number" min="1" max="65535" @bind="ProxyPort" placeholder="9090" /></div>
+            </div>
+        </div>
+        <div class="field" style="margin-top:12px"><label for="proxy-credentials">Proxy kimlik doğrulaması</label><label class="proxy-toggle"><input id="proxy-credentials" type="checkbox" @bind="ProxyUseDefaultCredentials" /> <span>Windows varsayılan kimlik bilgilerini kullan</span></label></div>
+        <div class="muted" style="margin-top:12px">Base URL: <code>@Options.BaseUrl</code> · Windows API kimlik bilgileri: @(Options.UseDefaultCredentials ? "Aktif" : "Pasif")</div>
+        <div class="toolbar" style="margin-top:16px;gap:8px">
+            <button class="btn btn-primary" @onclick="TestAsync" disabled="@Testing">@(Testing ? "Test ediliyor..." : "API Bağlantısını Test Et")</button>
+            <button class="btn btn-light" @onclick="SaveProxyAsync">Proxy Ayarlarını Kaydet</button>
+            <button class="btn btn-light" @onclick="ResetProxyAsync">Dosyadaki Ayarları Yeniden Yükle</button>
+        </div>
+        @if (Health is not null) { <div class="alert alert-success" style="margin-top:12px">SOME toplamı: @Health.SomeCount • Yanıt: @Health.Duration.TotalMilliseconds.ToString("0") ms</div> }
+    </div>
+</div>
+
+<div class="alert alert-info" role="note" style="margin-top:16px">
+    <p style="margin:0"><strong>Proxy Ayarlarını Kaydet</strong> düğmesi bu dosyaya kalıcı olarak kaydeder: <code>appsettings.json</code>.</p>
+</div>
+
+@code {
+    [Inject] private SipApiClient Api { get; set; } = default!;
+    [Inject] private IJSRuntime JS { get; set; } = default!;
+    [Inject] private IWebHostEnvironment Environment { get; set; } = default!;
+    [Inject] private NavigationManager Navigation { get; set; } = default!;
+    [Inject] private CredentialStore Store { get; set; } = default!;
+    [Inject] private ProxySettingsStore ProxyStore { get; set; } = default!;
+    [Inject] private Microsoft.Extensions.Options.IOptions<SipApiOptions> OptionsAccessor { get; set; } = default!;
+    private SipApiOptions Options => OptionsAccessor.Value;
+    private string Token = "";
+    private string ProxyHost = "";
+    private int ProxyPort = 9090;
+    private bool ProxyEnabled;
+    private bool ProxyUseDefaultCredentials;
+    private string? Message, Error;
+    private HealthResult? Health;
+    private bool Testing;
+    private string? StartupWarning;
+
+    protected override void OnInitialized()
+    {
+        var uri = Navigation.ToAbsoluteUri(Navigation.Uri);
+        var query = QueryHelpers.ParseQuery(uri.Query);
+        if (query.TryGetValue("warning", out var warning) && !string.IsNullOrWhiteSpace(warning))
+            StartupWarning = warning.ToString();
+
+        ProxyEnabled = ProxyStore.Enabled;
+        LoadProxyAddress(ProxyStore.Url);
+        ProxyUseDefaultCredentials = ProxyStore.UseDefaultCredentials;
+    }
+
+    private async Task SaveTokenAsync()
+    {
+        Error = Message = null;
+        if (string.IsNullOrWhiteSpace(Token)) { Error = "Token boş bırakılamaz."; return; }
+        var confirmed = await JS.InvokeAsync<bool>("confirm", "Devam etmek istiyor musunuz?");
+        if (!confirmed) return;
+        try
+        {
+            Store.Save(Token.Trim(), Environment.ContentRootPath);
+            Token = "";
+            Message = "Token kaydedildi.";
+        }
+        catch (Exception ex) { Error = $"Token kaydedilemedi: {ex.Message}"; }
+    }
+
+    private async Task TestTokenButtonAsync()
+    {
+        Error = Message = null;
+        if (string.IsNullOrWhiteSpace(Token)) { Error = "Test etmek için API Key alanına token girin."; return; }
+        var confirmed = await JS.InvokeAsync<bool>("confirm", "Girilen Token sunucunun belleğinde tutulur ve tarayıcı yeniden başlatıldığında silinir. API Key testi yapılsın mı?");
+        if (!confirmed) return;
+        Store.SetTemporary(Token);
+        await TestAsync();
+    }
+
+    private Task ResetProxyAsync()
+    {
+        try
+        {
+            ProxyStore.ResetToConfiguration();
+            ProxyEnabled = ProxyStore.Enabled;
+            LoadProxyAddress(ProxyStore.Url);
+            ProxyUseDefaultCredentials = ProxyStore.UseDefaultCredentials;
+            Message = "Proxy ayarları appsettings.json dosyasından yeniden yüklendi.";
+            Error = null;
+        }
+        catch (Exception ex) { Error = $"Statik ayarlara dönülemedi: {ex.Message}"; Message = null; }
+        return Task.CompletedTask;
+    }
+
+    private async Task SaveProxyAsync()
+    {
+        var confirmed = await JS.InvokeAsync<bool>("confirm", "Proxy ayarları appsettings.json dosyasına kalıcı olarak kaydedilecek. Devam etmek istiyor musunuz?");
+        if (!confirmed) return;
+        try
+        {
+            ProxyStore.Save(ProxyEnabled, BuildProxyUrl(), ProxyUseDefaultCredentials);
+            Message = $"Proxy ayarları kaydedildi. Proxy: {(ProxyEnabled ? "Aktif" : "Pasif")}. Değişiklikler sonraki API isteğinde uygulanır.";
+            Error = null;
+        }
+        catch (Exception ex) { Error = ex.Message; Message = null; }
+    }
+
+    private void LoadProxyAddress(string? value)
+    {
+        if (Uri.TryCreate(value, UriKind.Absolute, out var uri))
+        {
+            ProxyHost = uri.Host;
+            ProxyPort = uri.IsDefaultPort ? (uri.Scheme.Equals("https", StringComparison.OrdinalIgnoreCase) ? 443 : 80) : uri.Port;
+        }
+        else
+        {
+            ProxyHost = string.Empty;
+            ProxyPort = 9090;
+        }
+    }
+
+    private string BuildProxyUrl()
+    {
+        var host = (ProxyHost ?? string.Empty).Trim();
+        if (host.Contains("://", StringComparison.Ordinal))
+            throw new ArgumentException("Proxy adresi alanına yalnızca sunucu adı veya IP adresi girin; protokol girmeyin.");
+        if (ProxyPort is < 1 or > 65535)
+            throw new ArgumentException("Proxy portu 1 ile 65535 arasında olmalıdır.");
+        if (string.IsNullOrWhiteSpace(host))
+            throw new ArgumentException("Proxy adresi boş bırakılamaz.");
+        return $"http://{host}:{ProxyPort}/";
+    }
+
+    private async Task TestAsync()
+    {
+        Testing = true;
+        Message = Error = null;
+        Health = null;
+
+        // Hatalı adres/erişilemeyen API durumunda uzun süre bekleyip kullanıcıya
+        // belirsiz bir TaskCanceledException göstermek yerine kontrollü sonlandır.
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(12));
+        try
+        {
+            Health = await Api.TestConnectionAsync(timeout.Token);
+            Message = $"Bağlantı başarılı. SOME toplamı: {Health.SomeCount}, yanıt: {Health.Duration.TotalMilliseconds:0} ms.";
+        }
+        catch (OperationCanceledException) when (timeout.IsCancellationRequested)
+        {
+            Error = "SİP API 12 saniye içinde yanıt vermedi. API adresini, ağ bağlantısını ve proxy ayarlarını kontrol edip yeniden deneyin.";
+        }
+        catch (HttpRequestException ex)
+        {
+            Error = $"SİP API bağlantısı kurulamadı. API adresini, TLS sertifikasını ve proxy ayarlarını kontrol edin. Ayrıntı: {ex.Message}";
+        }
+        catch (Exception ex)
+        {
+            Error = $"API bağlantı testi başarısız: {ex.Message}";
+        }
+        finally
+        {
+            Testing = false;
+        }
+    }
+}

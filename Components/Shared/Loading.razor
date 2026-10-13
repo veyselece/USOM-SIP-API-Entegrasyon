@@ -1,0 +1,12 @@
+@if (Visible)
+{
+    <div class="text-center loading-block">
+        <div class="spinner"></div>
+        <p class="muted">@Text</p>
+    </div>
+}
+
+@code {
+    [Parameter] public bool Visible { get; set; }
+    [Parameter] public string Text { get; set; } = "Yükleniyor...";
+}

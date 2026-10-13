@@ -1,0 +1,9 @@
+@page "/messages/{Id:int}"
+<PageTitle>Mesaj</PageTitle>
+<div class="usom-modal-backdrop">
+    <section class="usom-modal" role="dialog" aria-modal="true" aria-label="Mesaj Detayı">
+        <button type="button" class="modal-close" data-modal-close @onclick="CloseModal" aria-label="Kapat" title="Kapat">×</button>
+<div class="page-head"><div><h1>@Item?.Title</h1><p>@Item?.Code • @Format.Unix(Item?.CreatedAt ?? 0)</p></div><a class="btn btn-light" href="/messages">← Geri</a></div>@if(Error is not null){<div class="alert alert-danger">@Error</div>}@if(Item is not null){<div class="card"><div class="prose">@((MarkupString)HtmlContent.ToSafeHtml(Item.Content))</div></div>}
+    </section>
+</div>
+@code{[Parameter]public int Id{get;set;}[Parameter]public EventCallback OnClose{get;set;}[Inject]private SipApiClient Api{get;set;}=default!;[Inject]private NavigationManager Navigation{get;set;}=default!;private async Task CloseModal(){if(OnClose.HasDelegate)await OnClose.InvokeAsync();else Navigation.NavigateTo("/messages");}private Message? Item;private string? Error;private bool loaded;protected override async Task OnParametersSetAsync(){if(loaded)return;loaded=true;try{Item=await Api.GetAsync<Message>($"messages/{Id}");}catch(Exception ex){Error=ex.Message;}}}

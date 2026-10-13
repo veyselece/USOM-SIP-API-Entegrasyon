@@ -1,0 +1,39 @@
+@inherits LayoutComponentBase
+
+<div class="topbar">
+    <div class="brand">
+        <span class="brand-logo-wrap" aria-label="USOM" title="USOM"><img class="brand-logo" src="/images/usom-logo.png" alt="USOM" /></span>
+        <div><strong>SİP Portal</strong><small>USOM Some İletişim Platformu</small></div>
+    </div>
+    <nav class="top-actions top-actions-status">
+        <NavLink href="/settings">Ayarlar</NavLink>
+        <span class="connection-pill online"><span class="online-dot">●</span> Online</span>
+    </nav>
+</div>
+
+<div class="app-shell">
+    <aside class="sidebar">
+        <div class="nav-section nav-section-blue">SİBER OLAYLAR</div>
+        <NavLink href="/" Match="NavLinkMatch.All"><span class="nav-icon">▦</span> İstatistikler</NavLink>
+        <div class="nav-group">
+            <NavLink href="/incidents"><span class="nav-icon">📨</span> Kurum Bildirimlerim</NavLink>
+            <div class="nav-submenu"><NavLink href="/incidents/create"><span class="nav-icon">＋</span> Yeni Bildirim</NavLink></div>
+        </div>
+        <NavLink href="/vulnerabilities"><span class="nav-icon">🛡</span> Gelen Siber Olaylar</NavLink>
+
+        <div class="nav-section nav-section-purple">USOM BİLGİLENDİRMELERİ</div>
+        <NavLink href="/safety-notices"><span class="nav-icon">⚠</span> Güvenlik Bildirimleri</NavLink>
+        <NavLink href="/announcements"><span class="nav-icon">📣</span> USOM Duyuruları</NavLink>
+        <NavLink href="/messages"><span class="nav-icon">✉</span> Mesajlar</NavLink>
+
+        <div class="nav-section nav-section-teal">KURUMSAL</div>
+        <NavLink href="/users"><span class="nav-icon">♙</span> SOME Kullanıcıları</NavLink>
+        <NavLink href="/somes"><span class="nav-icon">◉</span> SOME Bilgileri</NavLink>
+    </aside>
+
+    <main class="content">@Body</main>
+</div>
+
+<footer class="footer">SİP Portal v1 • USOM SİP API entegrasyonu</footer>
+
+

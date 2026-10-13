@@ -1,0 +1,410 @@
+@using Microsoft.AspNetCore.Components.Rendering
+@page "/"
+<PageTitle>SİP İstatistikleri</PageTitle>
+
+<div class="page-head">
+    <div>
+        <h1>SİP İstatistikleri</h1>
+    </div>
+</div>
+
+@if (!Api.IsConfigured)
+{
+    <div class="alert alert-danger">
+        API token veya Proxy ayarı yapılandırılmamış. <a href="/settings"><strong>Ayarlar</strong></a> menüsünden tanımlamalarınızı yapınız!
+    </div>
+}
+
+@if (Error is not null)
+{
+    <div class="alert @(IsRetrying ? "alert-warning" : "alert-danger")" role="status" aria-live="polite">
+        @if (IsRetrying)
+        {
+            <span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
+        }
+        @Error
+    </div>
+}
+
+@if (IsLoading)
+{
+    <div class="card dashboard-loading">
+        <Loading Visible="true" Text="SİP istatistikleri yükleniyor..." />
+    </div>
+}
+
+<div class="stats-grid">
+    <div class="stat-card rounded-2xl border border-gray-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md">
+        <div class="mb-4 flex items-center justify-between gap-3">
+            <span class="text-sm font-medium text-gray-500">Kurum Bildirimlerim</span>
+            <svg class="h-6 w-6 text-blue-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" stroke-linecap="round"/></svg>
+        </div>
+        <div class="metric mb-2 text-3xl font-semibold tracking-tight text-gray-800">@Display(IncidentTotal)</div>
+        <div class="stat-sub text-xs leading-relaxed text-gray-500">
+            Açık: <strong>@Display(IncidentOpen)</strong> · Değerlendirildi: <strong>@Display(IncidentReviewed)</strong>
+        </div>
+        <a class="mt-3 inline-flex items-center gap-1 text-sm font-medium text-blue-600 transition-colors hover:text-blue-800" href="/incidents">Bildirimleri aç →</a>
+    </div>
+
+    <div class="stat-card rounded-2xl border border-gray-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md">
+        <div class="mb-4 flex items-center justify-between gap-3">
+            <span class="text-sm font-medium text-gray-500">Gelen Siber Olaylar</span>
+            <svg class="h-6 w-6 text-amber-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 3 21 19H3L12 3Z"/><path d="M12 9v4m0 3h.01" stroke-linecap="round"/></svg>
+        </div>
+        <div class="metric mb-2 text-3xl font-semibold tracking-tight text-gray-800">@Display(VulnerabilityTotal)</div>
+        <div class="stat-sub text-xs leading-relaxed text-gray-500">
+            Açık: <strong>@Display(VulnerabilityOpen)</strong> · Çözüldü: <strong>@Display(VulnerabilityResolved)</strong> · Kapatıldı: <strong>@Display(VulnerabilityClosed)</strong>
+        </div>
+        <a class="mt-3 inline-flex items-center gap-1 text-sm font-medium text-blue-600 transition-colors hover:text-blue-800" href="/vulnerabilities">Gelen olayları aç →</a>
+    </div>
+
+    <div class="stat-card rounded-2xl border border-gray-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md">
+        <div class="mb-4 flex items-center justify-between gap-3">
+            <span class="text-sm font-medium text-gray-500">Güvenlik Bildirimleri</span>
+            <svg class="h-6 w-6 text-violet-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 3 20 6v5c0 5-3.4 8-8 10-4.6-2-8-5-8-10V6l8-3Z"/><path d="M12 8v4m0 3h.01" stroke-linecap="round"/></svg>
+        </div>
+        <div class="metric mb-2 text-3xl font-semibold tracking-tight text-gray-800">@Display(SafetyNoticeTotal)</div>
+        <div class="stat-sub text-xs leading-relaxed text-gray-500">USOM güvenlik duyuruları ve uyarıları</div>
+        <a class="mt-3 inline-flex items-center gap-1 text-sm font-medium text-blue-600 transition-colors hover:text-blue-800" href="/safety-notices">Bildirimleri aç →</a>
+    </div>
+
+    @GaugeCard("Değerlendirilen Bildirimler", IncidentReviewed, IncidentTotal, "#8b5cf6", "Bildirim")
+
+    <div class="stat-card rounded-2xl border border-gray-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md">
+        <div class="mb-4 flex items-center justify-between gap-3">
+            <span class="text-sm font-medium text-gray-500">Mesajlar</span>
+            <svg class="h-6 w-6 text-sky-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 5h16v12H8l-4 3V5Z"/><path d="M8 9h8M8 13h5" stroke-linecap="round"/></svg>
+        </div>
+        <div class="metric mb-2 text-3xl font-semibold tracking-tight text-gray-800">@Display(MessageTotal)</div>
+        <div class="stat-sub text-xs leading-relaxed text-gray-500">SİP hesabınıza gelen mesajlar</div>
+        <a class="mt-3 inline-flex items-center gap-1 text-sm font-medium text-blue-600 transition-colors hover:text-blue-800" href="/messages">Mesajları aç →</a>
+    </div>
+
+    <div class="stat-card rounded-2xl border border-gray-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md">
+        <div class="mb-4 flex items-center justify-between gap-3">
+            <span class="text-sm font-medium text-gray-500">USOM Duyuruları</span>
+            <svg class="h-6 w-6 text-emerald-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 13V8a2 2 0 0 1 2-2h3l8-3v17l-8-3H6a2 2 0 0 1-2-2Z"/><path d="m9 17 1.5 4H7l-1-4"/></svg>
+        </div>
+        <div class="metric mb-2 text-3xl font-semibold tracking-tight text-gray-800">@Display(AnnouncementTotal)</div>
+        <div class="stat-sub text-xs leading-relaxed text-gray-500">USOM tarafından yayımlanan duyurular</div>
+        <a class="mt-3 inline-flex items-center gap-1 text-sm font-medium text-blue-600 transition-colors hover:text-blue-800" href="/announcements">Duyuruları aç →</a>
+    </div>
+
+    <div class="stat-card rounded-2xl border border-gray-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md">
+        <div class="mb-4 flex items-center justify-between gap-3">
+            <span class="text-sm font-medium text-gray-500">Kullanıcılar</span>
+            <svg class="h-6 w-6 text-indigo-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="9" cy="8" r="3"/><path d="M3 20c.4-3.5 2.3-5.5 6-5.5s5.6 2 6 5.5M16 5.5a3 3 0 0 1 0 5.8M17 15c2.3.5 3.5 2 4 5" stroke-linecap="round"/></svg>
+        </div>
+        <div class="metric mb-2 text-3xl font-semibold tracking-tight text-gray-800">@Display(UserTotal)</div>
+        <div class="stat-sub text-xs leading-relaxed text-gray-500">Aktif: <strong>@Display(UserActive)</strong> · Diğer: <strong>@Display(UserOther)</strong></div>
+        <a class="mt-3 inline-flex items-center gap-1 text-sm font-medium text-blue-600 transition-colors hover:text-blue-800" href="/users">Kullanıcıları aç →</a>
+    </div>
+
+    @GaugeCard("Çözülen / Kapatılan Olaylar", SumNullable(VulnerabilityResolved, VulnerabilityClosed), VulnerabilityTotal, "#0d9488", "Olay")
+
+</div>
+
+
+@code {
+    [Inject] private SipApiClient Api { get; set; } = default!;
+    [Inject] private NavigationManager Navigation { get; set; } = default!;
+
+    private bool IsLoading;
+    private bool IsOnline;
+    private bool IsRetrying;
+    private bool loaded;
+    private string? Error;
+    private readonly SemaphoreSlim _apiRequestGate = new(3, 3);
+
+    private int? IncidentTotal;
+    private int? IncidentReviewed;
+    private int? IncidentOpen;
+    private int? IncidentReported;
+    private int? IncidentProcessing;
+
+    private int? VulnerabilityTotal;
+    private int? VulnerabilityResolved;
+    private int? VulnerabilityClosed;
+    private int? VulnerabilityOpen;
+    private int? VulnerabilityReported;
+    private int? VulnerabilityProcessing;
+
+    private int? SafetyNoticeTotal;
+    private int? AnnouncementTotal;
+    private int? MessageTotal;
+    private int? UserTotal;
+    private int? UserActive;
+    private int? UserOther;
+    private int? SomeTotal;
+    private int? SomeActive;
+    private int? SomeInactive;
+
+    private string IncidentChartStyle => DonutStyle(new[] { (IncidentReported ?? 0, "#3b82f6"), (IncidentProcessing ?? 0, "#f59e0b"), (IncidentReviewed ?? 0, "#16a34a") });
+    private string VulnerabilityChartStyle => DonutStyle(new[] { (VulnerabilityReported ?? 0, "#3b82f6"), (VulnerabilityProcessing ?? 0, "#f59e0b"), (VulnerabilityResolved ?? 0, "#16a34a"), (VulnerabilityClosed ?? 0, "#94a3b8") });
+
+    private static string DonutStyle((int Value, string Color)[] slices)
+    {
+        var total = slices.Sum(x => Math.Max(0, x.Value));
+        if (total == 0) return "background:conic-gradient(#e2e8f0 0deg 360deg)";
+        var start = 0d;
+        var stops = new List<string>();
+        foreach (var slice in slices)
+        {
+            var end = start + Math.Max(0, slice.Value) * 360d / total;
+            stops.Add($"{slice.Color} {start:0.##}deg {end:0.##}deg");
+            start = end;
+        }
+        return "background:conic-gradient(" + string.Join(",", stops) + ")";
+    }
+
+    private int? TotalSipRecords =>
+        IncidentTotal + VulnerabilityTotal + SafetyNoticeTotal + AnnouncementTotal + MessageTotal + UserTotal + SomeTotal;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && !loaded)
+        {
+            loaded = true;
+            await LoadAsync();
+        }
+    }
+
+    private async Task LoadAsync()
+    {
+        if (!Api.IsConfigured)
+        {
+            IsOnline = false;
+            Error = "API token veya Proxy ayarı yapılandırılmamış. Ayarlar menüsünden tanımlamalarınızı yapınız!";
+            return;
+        }
+
+        IsLoading = true;
+        IsRetrying = false;
+        Error = null;
+        const int maxAttempts = 3;
+
+        try
+        {
+            for (var attempt = 1; attempt <= maxAttempts; attempt++)
+            {
+                try
+                {
+                    if (attempt > 1)
+                    {
+                        IsRetrying = true;
+                        Error = $"API istatistikleri alınamadı, tekrar yükleme denemesi yapılıyor ({attempt}/{maxAttempts})…";
+                        await InvokeAsync(StateHasChanged);
+                        await Task.Delay(TimeSpan.FromSeconds(attempt == 2 ? 1 : 2));
+                    }
+
+                    await LoadOnceAsync();
+                    Error = null;
+                    IsRetrying = false;
+                    IsOnline = true;
+                    return;
+                }
+                catch (Exception) when (attempt < maxAttempts)
+                {
+                    IsOnline = false;
+                    IsRetrying = true;
+                    Error = $"API istatistikleri alınamadı, tekrar yükleme denemesi yapılıyor ({attempt + 1}/{maxAttempts})…";
+                    await InvokeAsync(StateHasChanged);
+                }
+                catch (Exception ex)
+                {
+                    IsOnline = false;
+                    IsRetrying = false;
+                    if (IsProxyOrNetworkFailure(ex))
+                    {
+                        var warning = "SİP API bağlantısı kurulamadı. Proxy adresi çözümlenemiyor veya proxy sunucusuna erişilemiyor. Proxy ayarlarını kontrol edin.";
+                        Navigation.NavigateTo($"/settings?warning={Uri.EscapeDataString(warning)}", replace: true);
+                        return;
+                    }
+                    Error = "API istatistikleri alınamadı. Otomatik yeniden denemeler başarısız oldu. Lütfen biraz sonra yeniden deneyin.";
+                }
+            }
+        }
+        finally
+        {
+            IsLoading = false;
+            IsRetrying = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private static bool IsProxyOrNetworkFailure(Exception ex)
+    {
+        for (Exception? current = ex; current is not null; current = current.InnerException)
+        {
+            if (current is HttpRequestException || current is System.Net.Sockets.SocketException)
+                return true;
+        }
+        return false;
+    }
+
+    private async Task LoadOnceAsync()
+    {
+            var healthTask = Api.TestConnectionAsync();
+            var incidentTotalTask = CountAsync<Incident>("incidents");
+            var incidentReviewedTask = CountAsync<Incident>("incidents", ("status", "3"));
+            var incidentReportedTask = CountAsync<Incident>("incidents", ("status", "1"));
+            var incidentProcessingTask = CountAsync<Incident>("incidents", ("status", "2"));
+            var vulnerabilityTotalTask = CountAsync<Vulnerability>("vulnerabilities");
+            var vulnerabilityResolvedTask = CountAsync<Vulnerability>("vulnerabilities", ("status", "4"));
+            var vulnerabilityReportedTask = CountAsync<Vulnerability>("vulnerabilities", ("status", "1"));
+            var vulnerabilityReadTask = CountAsync<Vulnerability>("vulnerabilities", ("status", "2"));
+            var vulnerabilityProcessingTask = CountAsync<Vulnerability>("vulnerabilities", ("status", "3"));
+            var vulnerabilityClosedTask = CountAsync<Vulnerability>("vulnerabilities", ("status", "5"));
+            var safetyNoticeTotalTask = CountAsync<SafetyNotice>("safety-notices");
+            var announcementTotalTask = CountAsync<Announcement>("announcements");
+            var messageTotalTask = CountAsync<Message>("messages");
+            var userTotalTask = CountAsync<UserInfo>("users");
+            var userActiveTask = CountAsync<UserInfo>("users", ("status", "1"));
+            var someTotalTask = CountAsync<SomeInfo>("somes");
+            var someActiveTask = CountAsync<SomeInfo>("somes", ("status", "1"));
+
+            await Task.WhenAll(
+                healthTask,
+                incidentTotalTask, incidentReviewedTask, incidentReportedTask, incidentProcessingTask,
+                vulnerabilityTotalTask, vulnerabilityResolvedTask, vulnerabilityClosedTask, vulnerabilityReportedTask, vulnerabilityReadTask, vulnerabilityProcessingTask,
+                safetyNoticeTotalTask, announcementTotalTask, messageTotalTask,
+                userTotalTask, userActiveTask,
+                someTotalTask, someActiveTask);
+
+            IsOnline = (await healthTask).Success;
+
+            IncidentTotal = await incidentTotalTask;
+            IncidentReviewed = await incidentReviewedTask;
+            IncidentReported = await incidentReportedTask;
+            IncidentProcessing = await incidentProcessingTask;
+            IncidentOpen = Math.Max(0, IncidentTotal.Value - IncidentReviewed.Value);
+
+            VulnerabilityTotal = await vulnerabilityTotalTask;
+            VulnerabilityResolved = await vulnerabilityResolvedTask;
+            VulnerabilityClosed = await vulnerabilityClosedTask;
+            VulnerabilityReported = await vulnerabilityReportedTask;
+            VulnerabilityProcessing = (await vulnerabilityReadTask) + (await vulnerabilityProcessingTask);
+            VulnerabilityOpen = Math.Max(0, VulnerabilityTotal.Value - VulnerabilityResolved.Value - VulnerabilityClosed.Value);
+
+            SafetyNoticeTotal = await safetyNoticeTotalTask;
+            AnnouncementTotal = await announcementTotalTask;
+            MessageTotal = await messageTotalTask;
+
+            UserTotal = await userTotalTask;
+            UserActive = await userActiveTask;
+            UserOther = Math.Max(0, UserTotal.Value - UserActive.Value);
+
+            SomeTotal = await someTotalTask;
+            SomeActive = await someActiveTask;
+            SomeInactive = Math.Max(0, SomeTotal.Value - SomeActive.Value);
+
+    }
+
+    private async Task<int> CountAsync<T>(string path, params (string Key, string Value)[] filters)
+    {
+        var query = new Dictionary<string, string?>
+        {
+            ["page"] = "0",
+            ["per-page"] = "1"
+        };
+
+        foreach (var filter in filters)
+        {
+            query[filter.Key] = filter.Value;
+        }
+
+        await _apiRequestGate.WaitAsync();
+        try
+        {
+            var result = await Api.GetListAsync<T>(path, query);
+            return result.TotalCount;
+        }
+        finally
+        {
+            _apiRequestGate.Release();
+        }
+    }
+
+    private RenderFragment GaugeCard(string title, int? numerator, int? denominator, string color, string unit) => builder =>
+    {
+        var hasData = numerator.HasValue && denominator.HasValue && denominator.Value > 0;
+        var percent = hasData ? Math.Clamp((int)Math.Round(numerator!.Value * 100d / denominator!.Value), 0, 100) : (int?)null;
+        var trackColor = color switch
+        {
+            "#16a34a" => "#bbf7d0",
+            "#0d9488" => "#99f6e4",
+            "#3b82f6" => "#bfdbfe",
+            "#8b5cf6" => "#ddd6fe",
+            _ => "#cbd5e1"
+        };
+        var innerClass = color switch
+        {
+            "#16a34a" => "bg-green-50",
+            "#0d9488" => "bg-teal-50",
+            "#3b82f6" => "bg-blue-50",
+            "#8b5cf6" => "bg-violet-50",
+            _ => "bg-slate-100"
+        };
+        var iconBg = color switch
+        {
+            "#0d9488" => "#ccfbf1",
+            "#8b5cf6" => "#ede9fe",
+            _ => "#e2e8f0"
+        };
+        var trackStyle = percent.HasValue
+            ? $"background:conic-gradient(from 270deg at 50% 100%, {color} 0deg, {color} {percent.Value * 1.8:0.#}deg, {trackColor} {percent.Value * 1.8:0.#}deg, {trackColor} 180deg);"
+            : $"background:conic-gradient(from 270deg at 50% 100%, {trackColor} 0deg, {trackColor} 180deg);";
+        builder.OpenElement(0, "article");
+        builder.AddAttribute(1, "class", "stat-card gauge-card flex flex-col");
+        builder.OpenElement(2, "div"); builder.AddAttribute(3, "class", "gauge-card-heading");
+        builder.OpenElement(4, "span"); builder.AddAttribute(5, "class", "gauge-icon"); builder.AddAttribute(6, "style", $"background:{iconBg};color:{color}");
+        builder.OpenElement(7, "svg"); builder.AddAttribute(8, "viewBox", "0 0 24 24"); builder.AddAttribute(9, "width", "22"); builder.AddAttribute(10, "height", "22"); builder.AddAttribute(11, "fill", "none"); builder.AddAttribute(12, "stroke", "currentColor"); builder.AddAttribute(13, "stroke-width", "1.8");
+        if (title == "Değerlendirilen Bildirimler")
+        {
+            builder.OpenElement(14, "path"); builder.AddAttribute(15, "d", "M8 5h11v15H5V8l3-3Z M8 5v4H5 M8 12h5 M8 16h5 M15 14l2 2 4-5"); builder.CloseElement();
+        }
+        else
+        {
+            builder.OpenElement(14, "path"); builder.AddAttribute(15, "d", "M5 12.5 9.2 17 19 7 M12 3a9 9 0 1 0 9 9"); builder.CloseElement();
+        }
+        builder.CloseElement(); builder.CloseElement();
+        builder.OpenElement(16, "h3"); builder.AddAttribute(17, "class", "gauge-card-title"); builder.AddContent(18, title); builder.CloseElement();
+        builder.CloseElement();
+        builder.OpenElement(19, "div"); builder.AddAttribute(20, "class", "semi-donut-wrap");
+        builder.OpenElement(21, "svg"); builder.AddAttribute(22, "class", "semi-donut-svg"); builder.AddAttribute(23, "viewBox", "0 0 200 112"); builder.AddAttribute(24, "role", "img"); builder.AddAttribute(25, "aria-label", $"{title}: {(percent.HasValue ? percent.Value + "%" : "veri yok")}"); builder.AddAttribute(26, "preserveAspectRatio", "xMidYMid meet");
+        builder.OpenElement(27, "path"); builder.AddAttribute(28, "d", "M 12 100 A 88 88 0 0 1 188 100"); builder.AddAttribute(29, "fill", "none"); builder.AddAttribute(30, "stroke", "#e2e8f0"); builder.AddAttribute(31, "stroke-width", "16"); builder.AddAttribute(32, "stroke-linecap", "round"); builder.CloseElement();
+        builder.OpenElement(33, "path"); builder.AddAttribute(34, "d", "M 12 100 A 88 88 0 0 1 188 100"); builder.AddAttribute(35, "fill", "none"); builder.AddAttribute(36, "stroke", color); builder.AddAttribute(37, "stroke-width", "16"); builder.AddAttribute(38, "stroke-linecap", "round"); var arcLength = Math.PI * 88; var progressLength = arcLength * Math.Clamp(percent ?? 0, 0, 100) / 100.0; builder.AddAttribute(39, "stroke-dasharray", $"{progressLength:0.##} {arcLength:0.##}"); builder.AddAttribute(40, "stroke-dashoffset", "0"); builder.AddAttribute(41, "style", "transition:stroke-dasharray .35s ease;"); builder.CloseElement();
+        builder.CloseElement();
+        builder.OpenElement(33, "div"); builder.AddAttribute(34, "class", "semi-donut-center");
+        builder.OpenElement(35, "div"); builder.AddAttribute(36, "class", "semi-donut-value"); builder.AddAttribute(37, "style", $"color:{color}"); builder.AddContent(38, percent.HasValue ? $"%{percent.Value}" : "—"); builder.CloseElement();
+        builder.OpenElement(39, "div"); builder.AddAttribute(40, "class", "semi-donut-caption"); builder.AddContent(41, hasData ? $"{numerator:N0} / {denominator:N0} {unit}" : "Veri yok"); builder.CloseElement();
+        builder.CloseElement(); builder.CloseElement();
+        builder.OpenElement(33, "div"); builder.AddAttribute(34, "class", "gauge-badges");
+        if (title == "Değerlendirilen Bildirimler")
+        {
+            AddMiniBadge(builder, 56, "Bildirildi", IncidentReported, "bg-blue-100 text-blue-800");
+            AddMiniBadge(builder, 59, "İşlemde", IncidentProcessing, "bg-amber-100 text-amber-800");
+            AddMiniBadge(builder, 62, "Değerlendirildi", IncidentReviewed, "bg-green-100 text-green-800");
+        }
+        else
+        {
+            AddMiniBadge(builder, 65, "Bildirildi", VulnerabilityReported, "bg-blue-100 text-blue-800");
+            AddMiniBadge(builder, 68, "Okundu/İşlemde", VulnerabilityProcessing, "bg-amber-100 text-amber-800");
+            AddMiniBadge(builder, 71, "Çözüldü", VulnerabilityResolved, "bg-green-100 text-green-800");
+            AddMiniBadge(builder, 74, "Kapatıldı", VulnerabilityClosed, "bg-slate-200 text-slate-700");
+        }
+        builder.CloseElement();
+        builder.CloseElement();
+    };
+
+    private static void AddMiniBadge(RenderTreeBuilder builder, int seq, string label, int? value, string css)
+    {
+        builder.OpenElement(seq, "span");
+        builder.AddAttribute(seq + 1, "class", $"rounded-full px-2 py-1 text-[10px] font-semibold {css} gauge-status-badge");
+        builder.AddContent(seq + 2, $"{label} {Display(value)}");
+        builder.CloseElement();
+    }
+
+    private static int? SumNullable(int? first, int? second) => first.HasValue && second.HasValue ? first.Value + second.Value : null;
+    private static string Display(int? value) => value?.ToString("N0") ?? "—";
+}

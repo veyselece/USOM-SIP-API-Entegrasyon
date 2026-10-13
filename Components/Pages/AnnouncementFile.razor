@@ -1,0 +1,6 @@
+@page "/announcements/file/{Id:int}"
+@inject NavigationManager Navigation
+@code {
+    [Parameter] public int Id { get; set; }
+    protected override void OnParametersSet() => Navigation.NavigateTo($"/api/files/announcements/{Id}", forceLoad: true);
+}

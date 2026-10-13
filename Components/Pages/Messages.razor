@@ -1,0 +1,121 @@
+@page "/messages"
+<PageTitle>Mesajlar</PageTitle>
+<div class="page-head">
+    <div>
+        <h1>Mesajlar</h1>
+        <p>SİP platformundaki mesajlar.</p>
+    </div>
+</div>
+
+@if (Error is not null)
+{
+    <div class="alert alert-danger">@Error</div>
+}
+
+<div class="card">
+    <div class="toolbar">
+        <input @bind="Code" @bind:event="oninput" placeholder="Mesaj numarası" />
+        <input @bind="Title" @bind:event="oninput" placeholder="Başlık" />
+        <button class="btn btn-light" @onclick="SearchAsync" disabled="@Busy">Filtrele</button>
+        <button class="btn btn-light" @onclick="ClearAsync" disabled="@Busy">Temizle</button>
+    </div>
+
+    @if (Busy && Data is null)
+    {
+        <Loading Visible="true" Text="Mesajlar yükleniyor..." />
+    }
+    else if (Data is not null)
+    {
+        <div class="table-top-tools"><span class="muted">Toplam @Data.TotalCount kayıt</span><Pager Compact="true" Page="CurrentPage" TotalPages="@(Math.Max(Data.PageCount, 1))" TotalCount="@Data.TotalCount" Busy="Busy" PageChanged="GoToPageAsync" /></div>
+        <div class="table-wrap">
+            <table class="table">
+                <thead><tr><th class="sortable-header" role="button" tabindex="0" title="Sıralamak için tıklayın">Kod</th><th class="sortable-header" role="button" tabindex="0" title="Sıralamak için tıklayın">Başlık</th><th class="sortable-header" role="button" tabindex="0" title="Sıralamak için tıklayın">İçerik</th><th class="sortable-header" role="button" tabindex="0" title="Sıralamak için tıklayın">Tarih</th><th></th></tr></thead>
+                <tbody>
+                    @if (Data.Models.Count > 0)
+                    {
+                        @foreach (var item in Data.Models)
+                        {
+                            <tr>
+                                <td><strong>@item.Code</strong></td>
+                                <td>@item.Title</td>
+                                <td>@HtmlContent.ToPlainText(item.Content, 260)</td>
+                                <td>@Format.Unix(item.CreatedAt)</td>
+                                <td><button class="btn btn-primary btn-small" @onclick="() => SelectedDetailId = item.Id">Detay</button></td>
+                            </tr>
+                        }
+                    }
+                    else
+                    {
+                        <tr><td colspan="5" class="muted">Kayıt bulunamadı.</td></tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <Pager Page="CurrentPage" TotalPages="@(Math.Max(Data.PageCount, 1))" TotalCount="@Data.TotalCount" Busy="Busy" PageChanged="GoToPageAsync" />
+    }
+</div>
+
+@if (SelectedDetailId.HasValue) { <MessageDetails @key="SelectedDetailId" Id="@SelectedDetailId.Value" OnClose="CloseDetail" /> }
+
+@code {
+    [Inject] private SipApiClient Api { get; set; } = default!;
+
+    private ApiListData<Message>? Data;
+    private string? Error;
+    private string? Code;
+    private string? Title;
+    private bool Busy;
+    private bool loaded;
+    private int CurrentPage = 1;
+    private int? SelectedDetailId;
+    private void CloseDetail() => SelectedDetailId = null;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && !loaded)
+        {
+            loaded = true;
+            await LoadAsync();
+        }
+    }
+
+    private async Task SearchAsync() { CurrentPage = 1; await LoadAsync(); }
+
+    private async Task ClearAsync()
+    {
+        Code = null;
+        Title = null;
+        CurrentPage = 1;
+        await LoadAsync();
+    }
+
+    private async Task GoToPageAsync(int page)
+    {
+        if (page < 1) return;
+        if (Data is not null && Data.PageCount > 0 && page > Data.PageCount) return;
+        CurrentPage = page;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        Busy = true;
+        Error = null;
+
+        try
+        {
+            Data = await Api.GetListAsync<Message>(
+                "messages",
+                new Dictionary<string, string?>
+                {
+                    ["page"] = (CurrentPage - 1).ToString(),
+                    ["per-page"] = "20",
+                    ["code"] = Code,
+                    ["title"] = Title
+                });
+        }
+        catch (Exception ex) { Error = ex.Message; }
+        finally { Busy = false; await InvokeAsync(StateHasChanged); }
+    }
+}

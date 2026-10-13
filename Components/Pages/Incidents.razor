@@ -1,0 +1,192 @@
+@page "/incidents"
+<PageTitle>Kurum Bildirimlerim</PageTitle>
+
+<div class="page-head">
+    <div>
+        <h1>Kurum Bildirimlerim</h1>
+        <p>Kurumunuz tarafından USOM'a bildirilen siber olaylar.</p>
+    </div>
+    <div class="head-side">
+        <div class="status-summary"><button type="button" class="status-badge badge-gray" @onclick="() => FilterByStatusAsync(null)">Tümü <b>@DisplayCount(TotalCount)</b></button><button type="button" class="status-badge badge-blue" @onclick='() => FilterByStatusAsync("1")'>Bildirildi <b>@DisplayCount(ReportedCount)</b></button><button type="button" class="status-badge badge-amber" @onclick='() => FilterByStatusAsync("2")'>İşlem Yapılıyor <b>@DisplayCount(ProcessingCount)</b></button><button type="button" class="status-badge badge-green" @onclick='() => FilterByStatusAsync("3")'>Değerlendirildi <b>@DisplayCount(ReviewedCount)</b></button></div>
+        <a class="btn btn-primary" href="/incidents/create">+ Yeni Bildirim</a>
+    </div>
+</div>
+
+@if (Error is not null)
+{
+    <div class="alert alert-danger">@Error</div>
+}
+
+<div class="card">
+    <div class="toolbar">
+        <input @bind="Code" @bind:event="oninput" placeholder="Kod" />
+        <select @bind="Type">
+            <option value="">Tüm olay türleri</option>
+            @foreach (var eventType in EventTypes)
+            {
+                <option value="@eventType">@eventType</option>
+            }
+        </select>
+        <select @bind="Status">
+            <option value="">Tüm durumlar</option>
+            <option value="1">Bildirildi</option>
+            <option value="2">İşlem Yapılıyor</option>
+            <option value="3">Değerlendirildi</option>
+        </select>
+        <button class="btn btn-light" @onclick="SearchAsync" disabled="@IsLoading">Filtrele</button>
+        <button class="btn btn-light" @onclick="ClearAsync" disabled="@IsLoading">Temizle</button>
+    </div>
+
+    @if (IsLoading && Data is null)
+    {
+        <Loading Visible="true" Text="Bildirimler yükleniyor..." />
+    }
+    else if (Data is not null)
+    {
+        <div class="table-top-tools"><span class="muted">Toplam @Data.TotalCount kayıt</span><Pager Compact="true" Page="CurrentPage" TotalPages="@(Math.Max(Data.PageCount, 1))" TotalCount="@Data.TotalCount" Busy="IsLoading" PageChanged="GoToPageAsync" /></div>
+        <div class="table-wrap">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th class="sortable-header" role="button" tabindex="0" title="Sıralamak için tıklayın">Kod</th>
+                        <th class="sortable-header" role="button" tabindex="0" title="Sıralamak için tıklayın">Tür</th>
+                        <th class="sortable-header" role="button" tabindex="0" title="Sıralamak için tıklayın">Açıklama</th>
+                        <th class="sortable-header" role="button" tabindex="0" title="Sıralamak için tıklayın">Durum</th>
+                        <th class="sortable-header" role="button" tabindex="0" title="Sıralamak için tıklayın">Oluşturulma</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (Data.Models.Count > 0)
+                    {
+                        @foreach (var item in Data.Models)
+                        {
+                            <tr>
+                                <td><strong>@item.Code</strong></td>
+                                <td>@item.Type</td>
+                                <td>@HtmlContent.ToPlainText(item.Description, 240)</td>
+                                <td><span class="badge @Format.BadgeClassIncident(item.Status)">@Format.StatusIncident(item.Status)</span></td>
+                                <td>@Format.Unix(item.CreatedAt)</td>
+                                <td><a class="btn btn-light btn-small" href="/incidents/@item.Id">Detay</a></td>
+                            </tr>
+                        }
+                    }
+                    else
+                    {
+                        <tr><td colspan="6" class="muted">Kayıt bulunamadı.</td></tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <Pager Page="CurrentPage"
+               TotalPages="@(Math.Max(Data.PageCount, 1))"
+               TotalCount="@Data.TotalCount"
+               Busy="IsLoading"
+               PageChanged="GoToPageAsync" />
+    }
+</div>
+
+@code {
+    [Inject] private SipApiClient Api { get; set; } = default!;
+
+    private ApiListData<Incident>? Data;
+    private string? Error;
+    private bool IsLoading;
+    private bool loaded;
+    private int CurrentPage = 1;
+    private string? Code;
+    private string? Type;
+    private string? Status;
+    private List<string> EventTypes = [];
+    private int? TotalCount; private int? ReportedCount; private int? ProcessingCount; private int? ReviewedCount;
+    private static string DisplayCount(int? n) => n?.ToString("N0") ?? "…";
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && !loaded)
+        {
+            loaded = true;
+            await LoadAsync();
+        }
+    }
+
+    private async Task FilterByStatusAsync(string? status)
+    {
+        Status = status;
+        CurrentPage = 1;
+        await LoadAsync();
+    }
+
+    private async Task SearchAsync()
+    {
+        CurrentPage = 1;
+        await LoadAsync();
+    }
+
+    private async Task ClearAsync()
+    {
+        Code = null;
+        Type = null;
+        Status = null;
+        CurrentPage = 1;
+        await LoadAsync();
+    }
+
+    private async Task GoToPageAsync(int page)
+    {
+        if (page < 1) return;
+        if (Data is not null && Data.PageCount > 0 && page > Data.PageCount) return;
+        CurrentPage = page;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        IsLoading = true;
+        Error = null;
+
+        try
+        {
+            if (EventTypes.Count == 0)
+            {
+                try
+                {
+                    var typeSource = await Api.GetListAsync<Incident>("incidents", new Dictionary<string, string?> { ["page"] = "0", ["per-page"] = "100" });
+                    EventTypes = typeSource.Models.Select(x => x.Type).Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => x!.Trim()).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(x => x).ToList();
+                }
+                catch { /* Liste filtreleri asıl kayıt çağrısıyla yine çalışır. */ }
+            }
+
+            var countTasks = new[] { CountAsync("incidents"), CountAsync("incidents", "1"), CountAsync("incidents", "2"), CountAsync("incidents", "3") };
+            Data = await Api.GetListAsync<Incident>(
+                "incidents",
+                new Dictionary<string, string?>
+                {
+                    ["page"] = (CurrentPage - 1).ToString(),
+                    ["per-page"] = "20",
+                    ["code"] = Code,
+                    ["status"] = Status,
+                    ["type"] = Type
+                });
+            var counts = await Task.WhenAll(countTasks);
+            TotalCount = counts[0]; ReportedCount = counts[1]; ProcessingCount = counts[2]; ReviewedCount = counts[3];
+        }
+        catch (Exception ex)
+        {
+            Error = ex.Message;
+        }
+        finally
+        {
+            IsLoading = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+    private async Task<int> CountAsync(string path, string? status = null)
+    {
+        var q = new Dictionary<string, string?> { ["page"] = "0", ["per-page"] = "1" };
+        if (status is not null) q["status"] = status;
+        return (await Api.GetListAsync<Incident>(path, q)).TotalCount;
+    }
+
+}

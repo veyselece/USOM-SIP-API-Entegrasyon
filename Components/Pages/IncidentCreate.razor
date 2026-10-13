@@ -1,0 +1,47 @@
+@page "/incidents/create"
+<PageTitle>Yeni Siber Olay Bildir</PageTitle>
+
+<div class="page-head"><div><h1>Yeni Siber Olay Bildir</h1></div></div>
+@if (Error is not null) { <div class="alert alert-danger">@Error</div> }
+@if (Success is not null) { <div class="alert alert-success">@Success</div> }
+
+<div class="card">
+    <div class="form-grid">
+        <div class="field"><label>Olay Türü</label><input @bind="Input.Type" /></div>
+        <div class="field"><label>Olay Türü (Diğer)</label><input @bind="Input.TypeMore" /></div>
+        <div class="field"><label>Etkilenen Sistemler</label><input @bind="Input.AffectedSystems" /></div>
+        <div class="field"><label>Etkilenen Sistemler (Diğer)</label><input @bind="Input.AffectedSystemsMore" /></div>
+        <div class="field"><label>Tespit Yöntemi</label><input @bind="Input.DetectionMethod" /></div>
+        <div class="field"><label>Bildirim Yöntemi</label><input @bind="Input.NotificationMethod" /></div>
+        <div class="field"><label>Bildirim Yöntemi (Diğer)</label><input @bind="Input.NotificationMethodMore" /></div>
+        <div class="field"><label>Sistem Kesintisi</label><select @bind="Input.SystemDown"><option value="0">Hayır</option><option value="1">Evet</option></select></div>
+        <div class="field"><label>Tahmini Başlangıç</label><input type="datetime-local" @bind="StartLocal" /></div>
+        <div class="field"><label>Tespit Tarihi</label><input type="datetime-local" @bind="DetectionLocal" /></div>
+        <div class="field full"><label>Kısa Tanım</label><textarea @bind="Input.Description"></textarea></div>
+        <div class="field"><label>İz Kaydı</label><select @bind="Input.TrackRecordDetected"><option value="0">Hayır</option><option value="1">Evet</option></select></div>
+        <div class="field"><label>Kaynak IP</label><input @bind="Input.TrackSourceIp" /></div>
+        <div class="field"><label>Hedef IP</label><input @bind="Input.TrackTargetIp" /></div>
+        <div class="field"><label>Port</label><input @bind="Input.TrackPort" /></div>
+        <div class="field full"><label>Diğer İz Bilgileri</label><textarea @bind="Input.TrackOther"></textarea></div>
+        <div class="field full"><label>Alınan Karşı Önlemler</label><textarea @bind="Input.Prevention"></textarea></div>
+        <div class="field full"><label>Eklenmek İstenenler</label><textarea @bind="Input.Addition"></textarea></div>
+    </div>
+    <div class="toolbar" style="margin-top:16px"><button class="btn btn-primary" @onclick="CreateAsync" disabled="@IsLoading">@(IsLoading ? "Gönderiliyor..." : "Bildirimi Oluştur")</button><a class="btn btn-light" href="/incidents">Vazgeç</a></div>
+</div>
+
+@code {
+    [Inject] private SipApiClient Api { get; set; } = default!;
+    private IncidentCreateRequest Input = new();
+    private DateTime StartLocal = DateTime.Now; private DateTime DetectionLocal = DateTime.Now;
+    private string? Error; private string? Success; private bool IsLoading;
+    private async Task CreateAsync() {
+        Error = Success = null;
+        if (string.IsNullOrWhiteSpace(Input.Description)) { Error = "Kısa Tanım zorunludur."; return; }
+        Input.StartDate = new DateTimeOffset(DateTime.SpecifyKind(StartLocal, DateTimeKind.Local)).ToUnixTimeSeconds();
+        Input.DetectionDate = new DateTimeOffset(DateTime.SpecifyKind(DetectionLocal, DateTimeKind.Local)).ToUnixTimeSeconds();
+        IsLoading = true;
+        try { var x = await Api.PostAsync<Incident>("incidents", Input); Success = $"Bildirim oluşturuldu. Kod: {x.Code}, ID: {x.Id}"; }
+        catch (Exception ex) { Error = ex.Message; }
+        finally { IsLoading = false; }
+    }
+}

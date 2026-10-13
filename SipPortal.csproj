@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>SipPortal</RootNamespace>
+    <UserSecretsId>sipportal-v1-veyselece-local-dev</UserSecretsId>
+    <Version>1.0.0</Version>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+    <InformationalVersion>v1</InformationalVersion>
+  </PropertyGroup>
+  <!-- appsettings.json proxy ayarları ekranından güncellenir. dotnet watch'ın
+       bu dosya değişince uygulamayı yeniden başlatıp Blazor bağlantısını düşürmesini önle. -->
+  <ItemGroup>
+    <Watch Remove="appsettings.json" />
+  </ItemGroup>
+</Project>

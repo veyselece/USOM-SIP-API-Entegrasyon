@@ -1,0 +1,9 @@
+@page "/safety-notices/{Id:int}"
+<PageTitle>Güvenlik Bildirimi</PageTitle>
+<div class="usom-modal-backdrop">
+    <section class="usom-modal" role="dialog" aria-modal="true" aria-label="Güvenlik Bildirimi Detayı">
+        <button type="button" class="modal-close" data-modal-close @onclick="CloseModal" aria-label="Kapat" title="Kapat">×</button>
+<div class="page-head"><div><h1>@Item?.Title</h1><p>@Item?.Code • Seviye @Item?.Level</p></div><a class="btn btn-light" href="/safety-notices">← Geri</a></div>@if(Error is not null){<div class="alert alert-danger">@Error</div>}@if(Item is not null){<div class="card"><div class="muted">@Format.Unix(Item.CreatedAt)</div><div class="prose" style="margin-top:15px">@((MarkupString)HtmlContent.ToSafeHtml(Item.Content))</div></div>}
+    </section>
+</div>
+@code{[Parameter]public int Id{get;set;}[Parameter]public EventCallback OnClose{get;set;}[Inject]private SipApiClient Api{get;set;}=default!;[Inject]private NavigationManager Navigation{get;set;}=default!;private async Task CloseModal(){if(OnClose.HasDelegate)await OnClose.InvokeAsync();else Navigation.NavigateTo("/safety-notices");}private SafetyNotice? Item;private string? Error;private bool loaded;protected override async Task OnParametersSetAsync(){if(loaded)return;loaded=true;try{Item=await Api.GetAsync<SafetyNotice>($"safety-notices/{Id}");}catch(Exception ex){Error=ex.Message;}}}

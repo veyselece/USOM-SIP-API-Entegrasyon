@@ -1,0 +1,77 @@
+@if (Compact)
+{
+    <div class="pager compact-pager"><button class="btn btn-light btn-small" @onclick="Previous" disabled="@(Page <= 1 || Busy)" title="Önceki sayfa">‹</button><span class="pager-current">@Page / @Math.Max(TotalPages, 1)</span><button class="btn btn-light btn-small" @onclick="Next" disabled="@(Page >= TotalPages || Busy)" title="Sonraki sayfa">›</button></div>
+}
+else if (TotalPages > 1)
+{
+    <div class="list-footer">
+        <span class="muted">Toplam kayıt: @TotalCount</span>
+        <div class="pager">
+            <button class="btn btn-light btn-small" @onclick="Previous" disabled="@(Page <= 1 || Busy)">←</button>
+
+            @foreach (var number in VisiblePages)
+            {
+                if (number == -1)
+                {
+                    <span class="pager-gap">…</span>
+                }
+                else
+                {
+                    <button class="btn @(number == Page ? "btn-primary" : "btn-light") btn-small"
+                            @onclick="() => Go(number)"
+                            disabled="@(Busy || number == Page)">@number</button>
+                }
+            }
+
+            <button class="btn btn-light btn-small" @onclick="Next" disabled="@(Page >= TotalPages || Busy)">→</button>
+        </div>
+    </div>
+}
+else
+{
+    <div class="list-footer">
+        <span class="muted">Toplam kayıt: @TotalCount</span>
+        @if (TotalCount > 0)
+        {
+            <span class="muted">Sayfa 1 / 1</span>
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public bool Compact { get; set; }
+    [Parameter] public int Page { get; set; } = 1;
+    [Parameter] public int TotalPages { get; set; } = 1;
+    [Parameter] public int TotalCount { get; set; }
+    [Parameter] public bool Busy { get; set; }
+    [Parameter] public EventCallback<int> PageChanged { get; set; }
+
+    private IEnumerable<int> VisiblePages
+    {
+        get
+        {
+            if (TotalPages <= 7)
+                return Enumerable.Range(1, TotalPages);
+
+            var pages = new List<int> { 1 };
+            var start = Math.Max(2, Page - 1);
+            var end = Math.Min(TotalPages - 1, Page + 1);
+
+            if (start > 2) pages.Add(-1);
+            for (var i = start; i <= end; i++) pages.Add(i);
+            if (end < TotalPages - 1) pages.Add(-1);
+            pages.Add(TotalPages);
+            return pages;
+        }
+    }
+
+    private Task Previous() => Go(Page - 1);
+    private Task Next() => Go(Page + 1);
+
+    private Task Go(int requestedPage)
+    {
+        if (requestedPage < 1 || requestedPage > TotalPages || requestedPage == Page || Busy)
+            return Task.CompletedTask;
+        return PageChanged.InvokeAsync(requestedPage);
+    }
+}

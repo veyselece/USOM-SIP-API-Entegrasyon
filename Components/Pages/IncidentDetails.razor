@@ -1,0 +1,49 @@
+@page "/incidents/{Id:int}"
+@using Microsoft.AspNetCore.Components.Forms
+<PageTitle>Bildirim Detayı</PageTitle>
+
+<div class="page-head"><div><h1>Bildirim Detayı</h1><p>@Item?.Code</p></div><a class="btn btn-light" href="/incidents">← Geri</a></div>
+@if (Error is not null) { <div class="alert alert-danger">@Error</div> }
+@if (Success is not null) { <div class="alert alert-success">@Success</div> }
+@if (IsLoading) { <div class="card"><Loading Visible="true" Text="Bildirim detayı yükleniyor..." /></div> }
+@if (Item is not null)
+{
+    <div class="detail-sections">
+        <div class="card"><h3>Olay Bilgileri</h3><dl class="detail-grid">
+            <dt>Kod</dt><dd>@Item.Code</dd><dt>Durum</dt><dd><span class="badge @Format.BadgeClassIncident(Item.Status)">@Format.StatusIncident(Item.Status)</span></dd>
+            <dt>Tür</dt><dd>@Item.Type</dd><dt>Etkilenen Sistemler</dt><dd>@Item.AffectedSystems</dd><dt>Tespit Yöntemi</dt><dd>@Item.DetectionMethod</dd>
+            <dt>Bildirim Yöntemi</dt><dd>@Item.NotificationMethod</dd><dt>Sistem Kesintisi</dt><dd>@(Item.SystemDown == 1 ? "Evet" : "Hayır")</dd>
+            <dt>Açıklama</dt><dd><div class="prose">@((MarkupString)HtmlContent.ToSafeHtml(Item.Description))</div></dd><dt>Başlangıç</dt><dd>@Format.Unix(Item.StartDate)</dd><dt>Tespit</dt><dd>@Format.Unix(Item.DetectionDate)</dd>
+        </dl></div>
+        <div class="card"><h3>Mesajlar</h3>
+            @if (Item.Messages.Count == 0) { <p class="muted">Mesaj bulunamadı.</p> }
+            else { @foreach (var message in Item.Messages) { <div class="thread-item"><div class="thread-meta">Kullanıcı #@message.WriterId • @Format.Unix(message.CreatedAt)</div><div class="prose">@((MarkupString)HtmlContent.ToSafeHtml(message.Message))</div></div> } }
+            <textarea @bind="NewMessage" placeholder="Yeni mesaj..."></textarea>
+            <button class="btn btn-primary" style="margin-top:8px" @onclick="AddMessageAsync" disabled="@IsActionBusy">Mesaj Ekle</button>
+        </div>
+        <div class="card"><h3>İz Kaydı ve Önlemler</h3><dl class="detail-grid">
+            <dt>İz kaydı</dt><dd>@(Item.TrackRecordDetected == 1 ? "Var" : "Yok")</dd><dt>Kaynak IP</dt><dd>@Item.TrackSourceIp</dd><dt>Hedef IP</dt><dd>@Item.TrackTargetIp</dd>
+            <dt>Port</dt><dd>@Item.TrackPort</dd><dt>Diğer</dt><dd><div class="prose">@((MarkupString)HtmlContent.ToSafeHtml(Item.TrackOther))</div></dd><dt>Karşı Önlem</dt><dd><div class="prose">@((MarkupString)HtmlContent.ToSafeHtml(Item.Prevention))</div></dd><dt>Ek</dt><dd><div class="prose">@((MarkupString)HtmlContent.ToSafeHtml(Item.Addition))</div></dd>
+        </dl></div>
+        <div class="card"><h3>Ekler</h3>
+            @if (Item.Files.Count == 0) { <p class="muted">Ek bulunamadı.</p> }
+            else { @foreach (var file in Item.Files) { <div class="file-row"><a href="/api/files/incidents/@file.Id?name=@Uri.EscapeDataString(file.Name ?? ("ek-" + file.Id))">@file.Name</a><button class="btn btn-danger btn-small" @onclick="() => DeleteFileAsync(file.Id)" disabled="@IsActionBusy">Sil</button></div> } }
+            <div style="margin-top:12px"><InputFile OnChange="OnFilesSelected" multiple /><small class="muted">Bir veya daha fazla dosya; dosya başına maksimum 25 MB.</small></div>
+            @if (SelectedFiles.Count > 0) { <div class="code-list" style="margin-top:8px">@foreach (var file in SelectedFiles) { <code>@file.Name</code> }</div> }
+            <button class="btn btn-primary" style="margin-top:8px" @onclick="UploadFilesAsync" disabled="@(IsActionBusy || SelectedFiles.Count == 0)">Dosyaları Yükle</button>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public int Id { get; set; }
+    [Inject] private SipApiClient Api { get; set; } = default!;
+    private Incident? Item; private string? Error; private string? Success; private bool IsLoading; private bool IsActionBusy; private string NewMessage = "";
+    private readonly List<IBrowserFile> SelectedFiles = []; private bool loadedForId;
+    protected override async Task OnParametersSetAsync() { if (!loadedForId) { loadedForId = true; await LoadAsync(); } }
+    private async Task LoadAsync() { IsLoading = true; Error = null; try { Item = await Api.GetAsync<Incident>($"incidents/{Id}"); } catch (Exception ex) { Error = ex.Message; } finally { IsLoading = false; } }
+    private async Task AddMessageAsync() { if (string.IsNullOrWhiteSpace(NewMessage) || Item is null) { Error = "Mesaj boş olamaz."; return; } IsActionBusy = true; Error = null; Success = null; try { await Api.AddIncidentMessageAsync(Id, NewMessage.Trim()); NewMessage = ""; Success = "Mesaj eklendi."; await LoadAsync(); } catch (Exception ex) { Error = ex.Message; } finally { IsActionBusy = false; } }
+    private void OnFilesSelected(InputFileChangeEventArgs e) { SelectedFiles.Clear(); SelectedFiles.AddRange(e.GetMultipleFiles(10)); }
+    private async Task UploadFilesAsync() { if (Item is null || SelectedFiles.Count == 0) return; IsActionBusy = true; Error = null; Success = null; try { await Api.UploadIncidentFilesAsync(Id, SelectedFiles); Success = $"{SelectedFiles.Count} dosya yüklendi."; SelectedFiles.Clear(); await LoadAsync(); } catch (Exception ex) { Error = ex.Message; } finally { IsActionBusy = false; } }
+    private async Task DeleteFileAsync(int fileId) { IsActionBusy = true; Error = null; Success = null; try { await Api.DeleteIncidentFileAsync(fileId); Success = "Dosya silindi."; await LoadAsync(); } catch (Exception ex) { Error = ex.Message; } finally { IsActionBusy = false; } }
+}
